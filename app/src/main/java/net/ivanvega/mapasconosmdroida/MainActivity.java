@@ -7,6 +7,7 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.graphics.Point;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
@@ -58,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
     private FusedLocationProviderClient fusedLocationClient;
     IMapController mapController;
     private double wayLatitude = 0.0, wayLongitude = 0.0;
+    ArrayList<Polyline> listaPuntos;
     FloatingActionButton fab;
 
     @Override
@@ -78,7 +80,7 @@ public class MainActivity extends AppCompatActivity {
         //inflate and create the map
         setContentView(R.layout.activity_main);
         fab = findViewById(R.id.fab);
-
+        listaPuntos = new ArrayList<>();
         map = (MapView) findViewById(R.id.map);
         map.setTileSource(TileSourceFactory.MAPNIK);
 
@@ -126,18 +128,31 @@ public class MainActivity extends AppCompatActivity {
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                obtenerRouteFromMapRequest(wayLatitude,wayLongitude);
+                Toast.makeText(ctx, "Ruta camino a casa predeterminada", Toast.LENGTH_SHORT).show();
+                obtenerRouteFromMapRequest(wayLatitude,wayLongitude,19.961209,-100.935053);
                 //map.getOverlayManager().remove(0);
             }
         });
 
         Intent intent=getIntent();
-        if(intent!=null){
+        if(intent.getStringExtra("lat1")!=null){
             String message = intent.getStringExtra("lat1")+", "+
                     intent.getStringExtra("long1")+", "+
                     intent.getStringExtra("lat2")+", "+
                     intent.getStringExtra("long2");
             System.out.println(message);
+
+            try {
+                obtenerRouteFromMapRequest(Double.parseDouble(intent.getStringExtra("lat1")),
+                        Double.parseDouble(intent.getStringExtra("long1")),
+                        Double.parseDouble(intent.getStringExtra("lat2")),
+                        Double.parseDouble(intent.getStringExtra("long2"))
+                );
+            }catch (Exception e){
+                Toast.makeText(ctx, "Error formato de direccion", Toast.LENGTH_SHORT).show();
+            }
+
+
         }
 
 
@@ -162,7 +177,10 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(intent);
                 return true;
             case R.id.clear:
-                Toast.makeText(this, "limpiar rutas", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "limpiando rutas", Toast.LENGTH_SHORT).show();
+                for (Polyline line:listaPuntos){
+                    map.getOverlayManager().remove(line);
+                }
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -235,32 +253,17 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void obtenerRouteFromMapRequest(Double lat, Double longitude){
+    private void obtenerRouteFromMapRequest(Double lat, Double longitude, Double lat2, Double long2){
         puntosRuta=new ArrayList<>();
-        System.out.println("http://www.mapquestapi.com/directions/v2/route?key=dBt73uWFJ7QfdMuVAvjICYRmoaNxyDJi&from="+lat+","+longitude+"&to=19.961209,-100.935053");
+        System.out.println("http://www.mapquestapi.com/directions/v2/route?key=dBt73uWFJ7QfdMuVAvjICYRmoaNxyDJi&from="+
+                lat+","+longitude+"&to="+lat2+","+long2);
         queue =
                 Volley.newRequestQueue(this);
 
-//        StringRequest request = new StringRequest(
-//                "http://www.mapquestapi.com/directions/v2/route?key=MI-KEY&from=20.14649016556056,-101.17566401392817&to=20.126496094732943,-101.19317063853653",
-//                new Response.Listener<String>() {
-//                    @Override
-//                    public void onResponse(String response) {
-//                        Log.d("GIVO", "se ejecuto");
-//
-//                    }
-//                },
-//                new Response.ErrorListener() {
-//                    @Override
-//                    public void onErrorResponse(VolleyError error) {
-//                        Log.d("GIVO", "se ejecuto con errror");
-//                    }
-//                }
-//        );
-
         requestMapRequest =
                 new JsonObjectRequest(
-                        "http://www.mapquestapi.com/directions/v2/route?key=dBt73uWFJ7QfdMuVAvjICYRmoaNxyDJi&from="+lat+","+longitude+"&to=19.961209,-100.935053",
+                        "http://www.mapquestapi.com/directions/v2/route?key=dBt73uWFJ7QfdMuVAvjICYRmoaNxyDJi&from="+
+                                lat+","+longitude+"&to=19.961209,-100.935053",
                         new Response.Listener<JSONObject>() {
                             @Override
                             public void onResponse(JSONObject response) {
@@ -272,7 +275,7 @@ public class MainActivity extends AppCompatActivity {
                                                     getJSONArray("maneuvers");
 
 
-
+                                    //se recorre la lista de puntos y se crea una polilinea
                                     for( int i =0 ;  i <indicaiones.length(); i++){
                                         JSONObject indi = indicaiones.getJSONObject(i);
                                         GeoPoint punto = new GeoPoint(
@@ -291,14 +294,17 @@ public class MainActivity extends AppCompatActivity {
 
                                     Polyline line = new Polyline();   //see note below!
                                     line.setPoints(puntosRuta);
+                                    line.setColor(Color.BLUE);
                                     line.setOnClickListener(new Polyline.OnClickListener() {
                                         @Override
                                         public boolean onClick(Polyline polyline, MapView mapView, GeoPoint eventPos) {
-                                            Toast.makeText(mapView.getContext(), "polyline with " + polyline.getPoints().size() + "pts was tapped", Toast.LENGTH_LONG).show();
+                                            Toast.makeText(mapView.getContext(), "polyline with " +
+                                                    polyline.getPoints().size() + "pts was tapped", Toast.LENGTH_LONG).show();
                                             return false;
                                         }
                                     });
                                     map.getOverlayManager().add(line);
+                                    listaPuntos.add(line);
 
                                 } catch (JSONException e) {
                                     e.printStackTrace();
